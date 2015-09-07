@@ -14,25 +14,26 @@
 	
 	li $v0 11
 m1:	addi $s0, $s0, 4 #before we get to the middle, we want number of stars +=2, afterwards, we want -=2.
-star4:	li $t1, 97 #'a'
+star4:
+	li $t1, 97 #'a'
 	add $t1, $t1, $t3 #first character of a row = 97 (a) + row number
 	subi $s0, $s0, 2 #number of * -= 2
 m2:	bgt $s0, 0, stars
 star3:	#we go here if a star wasnt printed (dont skip the char)
 	move $a0, $t1
 	syscall
+	addi $t1, $t1, 1
+	addi $t2, $t2, 1
 star2:	#we go here if a star was printed (skip the char)
 	li $a0, ' '
 	syscall
-	addi $t1, $t1, 1
-	addi $t2, $t2, 1
 m5:	beq $t1, $t5, m3 #if we make it to 97 (a) + n, need to start over
 	blt $t2, $t0, m2 #loop while (# of cols) < n
 	li $a0, '\n' #row is over, print newline and increment row counter
 	syscall
 	addi $t3, $t3, 1
 	li $t2, 0 #new row, need t2 (col #) = 0 again.
-	ble $t3, $s1, m1 #go start a new row with more * if rows < midpoint but < n
+	blt $t3, $s1, m1 #go start a new row with more * if rows < midpoint but < n
 	blt $t3, $t0, star4 #go start a new row with less stars if rows > midpoint but < n 
 	j m4 #we're done if we get here
 
@@ -46,13 +47,17 @@ stars:# we print stars when num of stars is positive. we know where to print the
 	div $s2, $s0, 2 #s2 = num of * divided by 2
 	add $s3, $s2, $s1 #upper bound for printing *
 	sub $s4, $s1, $s2 #lower bound for printing *
-	bgt $t2, $s4, printstar #if we are between the bounds, print stars
-	blt $t2, $s3, printstar #see above.
+	add $s5, $t2, 1 #s5 contains a temp representing where a star -would- be printed.
+	bge $s5, $s4, printstar #if we are between the bounds, print stars
 	j star3 #if we aren't between the bounds, business as usual
 
-printstar:	li $a0, '*'
+printstar:	bgt $s5, $s3, star3 #if we would be printing a star outside the range, print a char instead
+	addi $t1, $t1, 1 #we're going to print a star, increment col and char
+	addi $t2, $t2, 1
+	li $a0, '*'
 	syscall
 	j star2
-m4:	li $v0, 10
+
+m4: 	li $v0, 10
 	syscall
 	
