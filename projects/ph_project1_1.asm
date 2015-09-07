@@ -5,8 +5,7 @@
 	move $t0, $v0 #t0 contains user input
 	li $t2, 0 #counter for cols
 	li $t3, 0 #counter for rows
-	li $t4, 97 #counter for char (on a scale of 61 to 61 + n)
-	add $t5, $t4, $t0 #max char we will print
+	add $t5, $t0, 97 #max char we will print
 	
 	li $v0 11
 m1:	li $t1, 97 #'a'
@@ -18,7 +17,7 @@ m2:	move $a0, $t1
 	addi $t1, $t1, 1
 	addi $t2, $t2, 1
 m5:	beq $t1, $t5, m3 #if we make it to 91 (a) + n, need to start over
-	blt $t2, $t0, m2 
+	blt $t2, $t0, m2 #loop while (# of cols) < n 
 	li $a0, '\n' #row is over, print newline and increment row counter
 	syscall
 	addi $t3, $t3, 1
@@ -30,4 +29,4 @@ m3:	li $t1, 97
 	j m5 #resume
 	#li $t4, 61
 
-m4:	
+m4:

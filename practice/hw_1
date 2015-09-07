@@ -1,0 +1,14 @@
+
+bgt $t0, 4, m1
+
+move $t1, $t0
+j m2
+
+m1: li $t1, 0
+
+m2:
+
+      li $t0, 3
+L1:   addi $t0, $t0, 2
+      beq $t0, 5, L1         # L1 should be executed 4 times
+      move $t2, $t0    
