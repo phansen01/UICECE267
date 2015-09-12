@@ -2,6 +2,7 @@
 
 	li $v0, 5
 	syscall
+	beq $v0, $zero, m4 # n=0. no matrix.
 	move $t0, $v0 #t0 contains user input
 	
 	div $s1, $t0, 2 #integer division
