@@ -2,6 +2,7 @@
 
 	li $v0, 5
 	syscall
+	beq $v0, $zer0, m4 #we're done!
 	move $t0, $v0 #t0 contains user input
 	li $t2, 0 #counter for cols
 	li $t3, 0 #counter for rows
