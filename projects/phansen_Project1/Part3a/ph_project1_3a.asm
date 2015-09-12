@@ -1,7 +1,7 @@
 	.text
 	li $v0, 5
 	syscall
-
+	beq $v0, $zero, m4 #we're done if the user enters zero.
 	move $t0, $v0 #v0 contains user input
 	add $t1, $t0, 0 #rows = n
 	add $t2, $t0, $t0 #cols = 2n
