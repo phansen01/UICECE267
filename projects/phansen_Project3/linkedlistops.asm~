@@ -1,0 +1,335 @@
+	.data
+list1:	.word -1:10
+list1head:	.word 0
+listRA_temp:	.word 0
+insertionT1Temp:	.word 0
+nodeStack:	.word -1:5 #buffer of equal size to list -- stores empty addresses for
+	#potential nodes
+nodeStackEnd:	.word 0
+nodeStackPtr:	.word 0
+sortedAccs:	.word 256 #max size
+	.text
+	#j Main #skip the testing function
+	
+	##Driver function used to test functionality##
+driverFunction:
+	#fill stack with addresses.
+	jal populateStack
+	
+	#initialize list
+	lw $t0, list1head
+	li $t1, 1
+	jal listInsertion
+
+	#insert 2
+	lw $t0, list1head
+	li $t1, 2
+	jal listInsertion
+	
+	#insert 3
+	lw $t0, list1head
+	li $t1, 3
+	jal listInsertion
+
+	#delete 2 -- middle
+	lw $t0, list1head
+	li $t1, 2
+	jal listDeletion
+
+	#delete 3 -- tail
+	lw $t0, list1head
+	li $t1, 3
+	jal listDeletion
+
+	#delete 1 -- head
+	lw $t0, list1head
+	li $t1, 1
+	jal listDeletion
+	
+	#insert 5 -- new head
+	lw $t0, list1head
+	li $t1, 5
+	jal listInsertion
+	
+	#insert until full -- test
+	lw $t0, list1head
+	li $t1, 4
+	jal listInsertion
+	
+	lw $t0, list1head
+	li $t1, 3
+	jal listInsertion
+	
+	lw $t0, list1head
+	li $t1, 2
+	jal listInsertion
+	
+	lw $t0, list1head
+	li $t1, 1
+	jal listInsertion
+	
+	#replace LRU
+	lw $t0, list1head
+	li $t1, 99
+	jal listInsertion
+	#replace LRU
+	lw $t0, list1head
+	li $t1, 98
+	jal listInsertion
+
+	#replace LRU
+	lw $t0, list1head
+	li $t1, 97
+	jal listInsertion
+
+	#replace LRU
+	lw $t0, list1head
+	li $t1, 28
+	jal listInsertion
+
+
+
+	#end
+	li $v0, 10
+	syscall
+	
+
+sortAccounts:
+	###Assumes list head in t0###
+	###basic selection sort###
+
+	#first check if the list is empty. we can do this by checking if the
+	#node stack pointer points 4 bytes behind the nodeStackEnd address.
+	#i.e. the node stack is full
+	lw $t3, nodeStackPtr
+	lw $t4, nodeStackEnd
+	addi $t3, $t3, 4
+	beq $t3, $t4, sortEmptyList #the list is empty (the node stack is full)!
+
+	#list is not empty -- business as usual. 
+	la $t2, sortedAccs
+sortLoop: #copy nodes to buffer	
+	lw $t3, 4($t0) # t3 = head.next
+	beq $t0, $zero, beginSort
+	
+sortTrav: 
+	lw $s0, ($t0) #s0 = head.value
+	sw $s0, ($t2) #store account in buffer
+	lw $t3, 4($t0) #grab the next pointer of head
+	addi $t2, $t2, 4 #increment array pointer
+	j sortLoop
+
+beginSort:#selection sort -- all node values are copied to the buffer at this point
+	la $t1, sortedAccs
+	move $t2, $t1
+	
+	jr $ra
+	
+populateStack:
+	### populate the stack with addresses of valid node locations. ###
+	la $t0, nodeStack
+	la $t1, list1
+	li $t2, 1
+	add $t3, $t0, -4 #stack pointer starts 'behind' the stack -- we will
+	#increment it by one word before pushing first element.
+
+stackLoop:
+	bgt $t2, 5, stackFull #replace 5 with n 
+	addi $t3, $t3, 4 #increment stack pointer
+	sw $t1, ($t3) #push to stack
+	addi $t1, $t1, 8 #increment list address pointer
+	addi $t2, $t2, 1
+	j stackLoop
+stackFull:
+	#we're done, return.
+	sw $t3, nodeStackPtr
+	jr $ra
+
+listDeletion:
+	########################### linked list search/deletion ######################################
+	#takes two parameters, the target value, expected to be in $t1, and the head, expected in $t0#
+	#if we find the value, we modify the LRU structure by deleting the node and re-inserting it.##
+	#if we do not find the node, we either insert it at the tail or replace the LRU (head)########
+	##############################################################################################
+	
+	li $t4, 0 #assume length == 0
+	lw $s0, ($t0)
+	beq $s0, 0, emptyListDel #trivial case -- 'empty' list
+	li $t4, 1 #turns out it is at least 1
+	
+deletionLoop:	
+	lw $t3, 4($t0) # t3 = head.next
+	bne $t0, $zero, delTrav #while head != null
+	j delNodeNotFound
+
+delTrav:
+	lw $s0, ($t0) #s0 = head.value
+	beq $s0, $t1, delTarget
+	move $t5, $t0 #store the head before traversing further
+	move $t0, $t3 #head = head.next
+	lw $t3, 4($t0) #grab the next pointer of head
+	addi $t4, $t4, 1 #length += 1
+	j deletionLoop
+
+delTarget: #3 cases -- we are deleting the head, tail, or something in the middle
+	#if head, simply need to update head pointer.
+	#if tail, need to change the pointer of the *previous* node to null
+	#if in the middle, simply need to copy the value and pointer of the next node
+	
+	#at the start of this label, $t5 contains the previous node's address.
+	
+	lw $t2, list1head
+	beq $t0, $t2, delHead #target is the head
+	lw $t2, 4($t0) #t2 = node.next
+	beq $t2, $zero, delTail #the target is the tail
+	
+	#the node is in the middle if we get here
+	
+	#the node we will 'skip' over (the node to be deleted) will be empty.
+	#push its address to the stack
+	lw $t3, nodeStackPtr
+	addi $t3, $t3, 4
+	sw $t3, nodeStackPtr
+	lw $t6, 4($t5)
+	sw $t6, ($t3)
+	
+	lw $t3, 4($t0) #t3 = node.next
+	#lw $t6, 4($t3) #t6 = node.next.next
+	sw $t3, 4($t5) #previous_node.next = node.next
+
+	jr $ra
+	
+delTail:
+	#set next pointer of previous node to null, push tail's address to the stack of empty
+	#addresses.
+	sw $zero, 4($t5) #previous.next = null
+	lw $t3, nodeStackPtr
+	addi $t3, $t3, 4
+	sw $t3, nodeStackPtr
+	sw $t0, ($t3)
+	
+	#lw $t6, 4($t5)
+	#sw $t6, ($t3)
+	jr $ra
+	
+
+delHead:	
+	#store head.next as new head. check if head.next == null!!
+	#also, push head's address to the stack of empty addresses.
+
+	#push the address of head to the stack of empty
+	#addresses
+	lw $t3, nodeStackPtr
+	addi $t3, $t3, 4
+	sw $t3, nodeStackPtr
+	lw $t5, list1head
+	sw $t5, ($t3)
+
+	#head = head.next
+	lw $t3, 4($t0) #t3 = head.next
+	la $t5, list1head
+	sw $t3, ($t5)
+
+	jr $ra
+emptyListDel:
+	### print some message ###
+	jr $ra
+delNodeNotFound:
+	### print some message ###
+	jr $ra
+listInsertion:
+	li $t4, 0 #assume length == 0
+	beq $t0, 0, createList #trivial case -- 'empty' list when head == null
+	li $t4, 1 #turns out it is at least 1
+
+	lw $t3, 4($t0) # t3 = head.next
+
+	#here we basically steal the traversal function with some slight modifications
+insertionLoop:
+	beq $t4, 5, replaceLRU #replace 5 with user-defined value
+	bne $t3, $zero, insTrav #while head.next != null
+	#we didnt find the node -- insert it
+	j addFromStack
+
+insTrav:
+
+	lw $s0, ($t0) #s0 = head.value
+	beq $s0, $t1, foundTarget
+
+	move $t0, $t3 #head = head.next
+	lw $t3, 4($t0) #grab the next pointer of head
+	addi $t4, $t4, 1 #length += 1
+	j insertionLoop
+
+insertAtAddr:
+	sw $t1, ($t6)#node.value = target
+	subi $t5, $t5, 4 #decrement stack pointer.
+	sw $zero, 4($t6) #node.next = NULL
+	sw $t5, nodeStackPtr
+	jr $ra #return
+addFromStack:
+	lw $t5, nodeStackPtr
+	lw $t6, ($t5) 
+	sw $t6, 4($t0) #set previous node.next to point to our new node
+	j insertAtAddr
+createList:
+	lw $t5, nodeStackPtr
+	lw $t6, ($t5)
+	sw $t6, list1head
+	sw $t1, ($t6)
+	subi $t5, $t5, 4
+	sw $t5, nodeStackPtr
+	sw $zero, 4($t6)
+	jr $ra
+	#sw $t1, ($t0) #(head.value = target)
+	#sw $zero, 4($t0) #head.next = NULL
+	#jr $ra
+
+foundTarget:
+	### modify LRU structure, output confirmation message ###
+	#to reorder the LRU structure, we simply delete the node and
+	#re-insert it.
+
+	#print a message here#
+
+	#set t0 = head, t1 = target in preparation for deletion call
+	lw $t0, list1head
+	#push $ra and t1 into memory for preservation
+	sw $ra, listRA_temp
+	sw $t1, insertionT1Temp
+	jal listDeletion
+	
+	#restore ra and t1
+	lw $ra, listRA_temp
+	lw $t1, insertionT1Temp
+	#prepare t0 and t1 for insertion, store ra again
+	sw $ra, listRA_temp
+	la $t0, list1head
+	lw $t0, ($t0)
+	jal listInsertion
+
+	#restore ra
+	lw $ra, listRA_temp
+
+	#return
+	jr $ra
+replaceLRU:
+	#delete the head, append the target to the tail
+	
+	#first delete the head
+	lw $t0, list1head
+	#save ra and target
+	sw $ra, listRA_temp
+	sw $t1, insertionT1Temp
+	
+	lw $t1, ($t0) 
+	jal listDeletion
+	
+	#restore target, insert the new account at tail
+	lw $t1, insertionT1Temp
+	lw $t0, list1head
+	jal listInsertion
+	
+	#restore ra, return
+	lw $ra, listRA_temp
+	jr $ra
